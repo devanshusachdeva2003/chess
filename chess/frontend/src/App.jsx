@@ -1,4 +1,5 @@
 import './App.css'
+import { useEffect, useState } from 'react'
 
 const navItems = ['Play', 'Puzzles', 'Learn', 'Leaderboard']
 const menuItems = [
@@ -16,7 +17,7 @@ const stats = [
 ]
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1]
-const board = [
+const initialStaticBoard = [
   ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
   ['♟', '♟', '♟', '♟', '', '♟', '♟', '♟'],
   ['', '', '', '', '', '', '', ''],
@@ -26,10 +27,7 @@ const board = [
   ['♙', '♙', '♙', '♙', '', '♙', '♙', '♙'],
   ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'],
 ]
-const moves = [
-  ['1.', 'e4', 'e5'],
-  ['2.', 'Nf3', '-'],
-]
+
 const messages = [
   ['Alex', 'Good luck!', '10:15 AM'],
   ['You', 'You too!', '10:16 AM'],
@@ -70,6 +68,54 @@ function PlayerCard({ name, rating, time, side }) {
 }
 
 function App() {
+  const [board, setBoard] = useState(initialStaticBoard)
+  const [history, setHistory] = useState([])
+  const [selected, setSelected] = useState(null)
+
+  useEffect(() => {
+    fetch('http://localhost:4000/game/state')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.board) setBoard(data.board)
+        if (data && data.history) setHistory(data.history)
+      })
+      .catch(() => {})
+  }, [])
+
+  function squareFrom(rowIndex, colIndex) {
+    return `${files[colIndex]}${ranks[rowIndex]}`
+  }
+
+  function handleNewGame() {
+    fetch('http://localhost:4000/game/new', { method: 'POST' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.board) setBoard(data.board)
+        setHistory([])
+        setSelected(null)
+      })
+  }
+
+  function handleSquareClick(rowIndex, colIndex) {
+    const sq = squareFrom(rowIndex, colIndex)
+    if (!selected) {
+      setSelected(sq)
+      return
+    }
+    fetch('http://localhost:4000/game/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: selected, to: sq }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.board) setBoard(data.board)
+        if (data && data.history) setHistory(data.history)
+        setSelected(null)
+      })
+      .catch(() => setSelected(null))
+  }
+
   return (
     <main className="arena-shell">
       <aside className="sidebar">
@@ -78,7 +124,9 @@ function App() {
           Chess Arena
         </a>
 
-        <button className="new-game">+ New Game</button>
+        <button className="new-game" onClick={handleNewGame}>
+          + New Game
+        </button>
 
         <nav className="side-nav" aria-label="Game modes">
           {menuItems.map(([label, icon], index) => (
@@ -151,17 +199,22 @@ function App() {
               </div>
               <div className="chessboard">
                 {board.flatMap((row, rowIndex) =>
-                  row.map((piece, colIndex) => (
-                    <button
-                      className={`square ${(rowIndex + colIndex) % 2 === 0 ? 'light' : 'dark'} ${
-                        piece ? 'occupied' : ''
-                      }`}
-                      key={`${rowIndex}-${colIndex}`}
-                      aria-label={`${files[colIndex]}${ranks[rowIndex]} ${piece || 'empty'}`}
-                    >
-                      {piece}
-                    </button>
-                  )),
+                  row.map((piece, colIndex) => {
+                    const sq = `${files[colIndex]}${ranks[rowIndex]}`
+                    const isSelected = selected === sq
+                    return (
+                      <button
+                        onClick={() => handleSquareClick(rowIndex, colIndex)}
+                        className={`square ${(rowIndex + colIndex) % 2 === 0 ? 'light' : 'dark'} ${
+                          piece ? 'occupied' : ''
+                        } ${isSelected ? 'selected' : ''}`}
+                        key={`${rowIndex}-${colIndex}`}
+                        aria-label={`${files[colIndex]}${ranks[rowIndex]} ${piece || 'empty'}`}
+                      >
+                        {piece}
+                      </button>
+                    )
+                  }),
                 )}
               </div>
               <div className="file-labels">
@@ -202,13 +255,21 @@ function App() {
             <section className="panel">
               <h2>Move History</h2>
               <div className="moves">
-                {moves.map(([number, white, black]) => (
-                  <div key={number}>
-                    <span>{number}</span>
-                    <strong>{white}</strong>
-                    <b>{black}</b>
-                  </div>
-                ))}
+                {history.length === 0 ? (
+                  <div>No moves</div>
+                ) : (
+                  Array.from({ length: Math.ceil(history.length / 2) }).map((_, i) => {
+                    const white = history[2 * i]
+                    const black = history[2 * i + 1] || '-'
+                    return (
+                      <div key={i}>
+                        <span>{i + 1}.</span>
+                        <strong>{white}</strong>
+                        <b>{black}</b>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </section>
 

@@ -1,0 +1,4 @@
+/* minimal index.css copied from original */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+html,body,#root { height: 100%; }
+body { margin: 0; font-family: Inter, system-ui, sans-serif; }
